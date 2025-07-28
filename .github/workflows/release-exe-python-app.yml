@@ -29,6 +29,7 @@ jobs:
           nuitka-version: main
           script-name: vrchat-drawing-script.py
           mode: app
+          enable-plugins: tk-inter
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
