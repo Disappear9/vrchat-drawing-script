@@ -1,6 +1,7 @@
 # ==============================================================================
 # 依赖库安装:
 # pip install opencv-python numpy Pillow scikit-image keyboard pywin32
+# 版本:V7.3
 # ==============================================================================
 from math import hypot, ceil
 import tkinter as tk
