@@ -1,6 +1,6 @@
 # ==============================================================================
 # 依赖库安装:
-# pip install opencv-python numpy Pillow scikit-image keyboard pywin32 interception-python
+# pip install opencv-python numpy Pillow scikit-image keyboard pywin32
 # ==============================================================================
 from math import hypot, ceil
 import tkinter as tk
@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 import threading
 import time
+import win32api
 import win32gui
 import win32con
 import keyboard
@@ -18,16 +19,6 @@ import copy
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
-try:
-    import interception
-except ImportError:
-    messagebox.showerror(
-        "依赖缺失",
-        "找不到 'interception' 模块。\n\n"
-        "请确认您已运行: 'pip install interception-python'\n"
-        "并以【管理员身份】运行本程序。\n\n程序即将退出。"
-    )
-    exit()
 
 # --- 数据结构 (无变化) ---
 @dataclass
@@ -187,16 +178,10 @@ class VRChatDrawerPlanar:
         if not hasattr(self.vectorizer, 'image_width') or self.vectorizer.image_width == 0:
             messagebox.showerror("错误", "未找到图像尺寸信息，请先成功处理一张图片。")
             return
-        
-        try:
-            interception.auto_capture_devices(keyboard=False, mouse=True)
-        except Exception as e:
-            messagebox.showerror("Interception错误", f"自动捕获设备失败: {e}\n请确保以管理员身份运行且驱动已安装。")
-            return
 
-        if not self.focus_vrchat_window():
-            messagebox.showwarning("警告", "无法聚焦到VRChat窗口。")
-            return
+#        if not self.focus_vrchat_window():
+#            messagebox.showwarning("警告", "无法聚焦到VRChat窗口。")
+#            return
         
         self.drawing_active = True
         self.drawing_thread = threading.Thread(target=self._draw_thread, daemon=True)
@@ -209,7 +194,8 @@ class VRChatDrawerPlanar:
             if self.drawing_thread and self.drawing_thread.is_alive():
                 self.drawing_thread.join(timeout=2.0)
             try:
-                interception.mouse_up(button='left')
+                x,y = win32api.GetCursorPos()
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
                 print("绘画已停止。")
             except Exception as e:
                 print(f"停止时清理鼠标状态出错: {e}")
@@ -238,7 +224,7 @@ class VRChatDrawerPlanar:
             move_dy = int(round(total_dy_to_move))
             self.error_x = total_dx_to_move - move_dx
             self.error_y = total_dy_to_move - move_dy
-            if move_dx != 0 or move_dy != 0: interception.move_relative(move_dx, move_dy)
+            if move_dx != 0 or move_dy != 0: win32api.mouse_event(win32con.MOUSEEVENTF_MOVE, move_dx, move_dy, 0, 0)
             delay = 0.01 if is_pen_up else self.point_delay
             time.sleep(delay)
         self.current_x_px, self.current_y_px = target_x, target_y
@@ -248,8 +234,8 @@ class VRChatDrawerPlanar:
             print("绘图线程启动... 3秒后开始，请将VRChat画笔对准【画布中心】！")
             time.sleep(3)
             if not self.drawing_active: return
-            
-            interception.mouse_up(button='left')
+            x,y = win32api.GetCursorPos()
+            win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
             self.current_x_px = self.vectorizer.image_width / 2.0
             
             all_points = [p for s in self.current_strokes for p in s.points if s.points]
@@ -265,7 +251,8 @@ class VRChatDrawerPlanar:
             for stroke_idx, stroke in enumerate(self.current_strokes):
                 if not self.drawing_active or not stroke.points: break
                 print(f"正在处理笔划 {stroke_idx + 1}/{total_strokes}...")
-                interception.mouse_up(button='left')
+                x,y = win32api.GetCursorPos()
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
                 time.sleep(0.05)
                 target_point = stroke.points[0]
                 print(f"  - 提笔移动至: ({target_point.x:.1f}, {target_point.y:.1f})")
@@ -281,8 +268,8 @@ class VRChatDrawerPlanar:
                 # =================================================================
 
                 if not self.drawing_active: break # 在延时后再次检查状态
-                
-                interception.mouse_down(button='left')
+                x,y = win32api.GetCursorPos()
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTDOWN, x, y, 0, 0)
                 # 保留一个短暂延时，确保游戏引擎正确识别到“按下”状态再开始移动
                 time.sleep(0.05)
                 
@@ -290,7 +277,8 @@ class VRChatDrawerPlanar:
                     if not self.drawing_active: break
                     self._move_to_target_pixel(point.x, point.y, is_pen_up=False)
                 if not self.drawing_active: break
-                interception.mouse_up(button='left')
+                x,y = win32api.GetCursorPos()
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
                 time.sleep(0.05)
                 
             if self.drawing_active: print("所有笔划绘制完毕。")
@@ -302,8 +290,10 @@ class VRChatDrawerPlanar:
         finally:
             self.drawing_active = False
             try:
-                interception.mouse_up(button='left') 
+                x,y = win32api.GetCursorPos()
+                win32api.mouse_event(win32con.MOUSEEVENTF_LEFTUP, x, y, 0, 0)
                 print("绘图线程结束。")
+                self.update_status("绘图线程结束。")
             except Exception as e:
                 print(f"线程结束时释放鼠标按键出错: {e}")
 
@@ -311,7 +301,7 @@ class VRChatDrawerPlanar:
 class DrawingToolGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("VRChat 高级画图工具 v7.2 (预览与输出分离版)")
+        self.root.title("VRChat 高级画图工具 v7.3 (win32api版)")
         self.root.geometry("850x900")
         self.vectorizer = ImageVectorizer()
         self.drawer = VRChatDrawerPlanar(self.vectorizer)
@@ -393,10 +383,11 @@ class DrawingToolGUI:
         author_frame = ttk.LabelFrame(control_panel, text="关于", padding=10)
         author_frame.pack(fill='x', pady=5)
 
-        ttk.Label(author_frame, text="该脚本依赖的驱动Interception可能招致账户被封禁").pack(anchor='w')
-        ttk.Label(author_frame, text="仅供技术交流，请勿用于实际在线游戏").pack(anchor='w')
+        ttk.Label(author_frame, text="改用win32api，理论上不会招致账户被封禁").pack(anchor='w')
+        ttk.Label(author_frame, text="仅供技术交流").pack(anchor='w')
         ttk.Label(author_frame, text="https://space.bilibili.com/5145514").pack(anchor='w')
-
+        ttk.Label(author_frame, text="Fork：Disappear9/vrchat-drawing-script").pack(anchor='w')
+		
         right_panel = ttk.Frame(main_frame, padding="10")
         right_panel.pack(side='right', fill='both', expand=True)
         preview_frame = ttk.LabelFrame(right_panel, text="笔画预览 (2D - 原始比例)", padding=10)
@@ -410,7 +401,7 @@ class DrawingToolGUI:
             keyboard.add_hotkey('f10', self.stop_drawing, suppress=True)
             print("快捷键 F9 (开始) 和 F10 (停止) 已设置。")
         except Exception as e:
-            messagebox.showerror("快捷键错误", f"设置全局快捷键失败: {e}\n请务必以管理员身份运行此程序。")
+            messagebox.showerror("快捷键错误", f"设置全局快捷键失败: {e}")
 
     def interpolate_strokes(self, strokes: List[DrawingStroke], max_distance: float) -> List[DrawingStroke]:
         if max_distance <= 1: return strokes
@@ -569,16 +560,6 @@ class DrawingToolGUI:
             self.root.destroy()
 
 def main():
-    is_admin = False
-    try: is_admin = (os.getuid() == 0)
-    except AttributeError:
-        import ctypes
-        is_admin = (ctypes.windll.shell32.IsUserAnAdmin() != 0)
-    
-    if not is_admin:
-        messagebox.showwarning("权限不足", "本程序需要以【管理员身份】运行才能控制鼠标和设置全局热键。\n程序即将退出。")
-        return
-    
     root = tk.Tk()
     app = DrawingToolGUI(root)
     root.mainloop()
