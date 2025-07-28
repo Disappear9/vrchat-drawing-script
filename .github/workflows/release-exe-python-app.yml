@@ -34,7 +34,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: exe
-          path: build/osr_vrchat.exe
+          path: build/vrchat-drawing-script.exe
           include-hidden-files: true
 
       - name: Release
@@ -42,4 +42,4 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          files: build/osr_vrchat.exe
+          files: build/vrchat-drawing-script.exe
